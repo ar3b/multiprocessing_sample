@@ -37,14 +37,6 @@ def insert(lock, counter, (number, wait)):
     # Возвращаем результат для callback
     return number*2
 
-# Функция, куда будет передан результат выполнения операций
-# Важно - вызывается один раз по завершению выполнения всех процессов пулла задач
-# В аргумент будет передан массив результатов в том же порядке. в котором задачи
-# отправлялись в пулл
-def callback(result):
-    print "\n-------- R E S U L T ---------"
-    print result
-
 def main():
 
     # Просто подготовка БД
@@ -61,8 +53,10 @@ def main():
 
     # Готовим пулл процессов, указывая, что одновременно процессов будет не более
     # чем кол-во ядер минус 2 (один - это этот поток, один - ещё один, судя по всему, манагерский)
+    # maxtasksperchild указывается для избежания утечки памяти
     pool = multiprocessing.Pool(
-        processes=multiprocessing.cpu_count()-2
+        processes=multiprocessing.cpu_count()-2,
+        maxtasksperchild=500
     )
     # Готовим объект для ручного управления блокировкой
     lock = manager.Lock()
@@ -91,14 +85,20 @@ def main():
 
     # Задаём пуллу набор работы
     # функция (спец. объект) и массив с аргументами для каждого её вызова
-    tasks = pool.map_async(
+    tasks = pool.map(
         func=func,
-        iterable=data,
-        callback=callback
+        iterable=data
     )
 
-    # Ждём, пока пулл работ не закончит
-    tasks.wait()
+    # получаем зрезультаты работы. Они будут в том же порядке, в котором задавался
+    # массив с агрументам, с которыми вызывалась функция
+    outputs = [result for result in tasks]
+
+    print "\n------- R E S U L T S -------"
+    print outputs
+
+    # закрываем пулл задач (в т.ч. и для избежания утечек памяти)
+    pool.close()
 
 if __name__ == '__main__':
     main()
